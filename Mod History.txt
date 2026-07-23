@@ -1,0 +1,63 @@
+UI correcta, pero el funcionamiento del checkbox sigue mal (sin persistencia), y por alguna razón el checkbox de la Categoría Demons está activa (estaba activa antes de si quiera yo abrir el mod) y no se puede desactivar, es el único que le pasa eso. Busca un enfoque diferente para la persistencia, quizá un mapeado en json para guardar/cargar?
+
+este debería ser el funcionamiento normal de los checkbox
+1.- Entro a la categoría
+2.- Activo Tracking Checkbox
+3.- Salgo de la categoría
+4.- Vuelvo a entrar a la misma categoría
+5.- Checkbox con ticket. (persistencia)
+
+esto es un texto que te puse una vez que se logró completar la fase:
+```
+ahora sí, fase completada:
+03:08:10 INFO  [Main] [Achievement Tracker]: TrackingManager::load() -> 5 categories loaded
+03:08:10 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'Demons': isTracked=false
+03:08:16 INFO  [Main] [Achievement Tracker]: onTrackingToggle 'Demons': isOn=false -> newState=true
+03:08:16 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 5 categories, 102 achievements saved
+03:08:24 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'Demons': isTracked=true
+03:08:27 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'Insanes': isTracked=false
+03:08:29 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'Demons': isTracked=true
+03:08:30 INFO  [Main] [Achievement Tracker]: onTrackingToggle 'Demons': isOn=true -> newState=false
+03:08:30 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 5 categories, 102 achievements saved
+03:08:32 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'Demons': isTracked=false
+03:08:33 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'Insanes': isTracked=false
+03:08:34 INFO  [Main] [Achievement Tracker]: onTrackingToggle 'Insanes': isOn=false -> newState=true
+03:08:34 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 5 categories, 102 achievements saved
+03:08:35 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'Insanes': isTracked=true
+---
+```
+
+ah y la lógica del checkbox de la pestaña nueva no se sincroniza con el de "activar manualmente" (ir a la categoría y activar), al parecer están de modo "independiente", porque activé Demons en el scroll y luego fui a la categoría manualmente y estaba desactivado, cuando debió aparecer activado, si lo activé desde la pestaña dashboard/srcoll
+
+--- 1 ---
+04:08:26 INFO  [Main] [Achievement Tracker]: TrackingManager::load() -> 10 categories loaded
+04:08:36 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'User Levels': isTracked=false
+04:08:39 INFO  [Main] [Achievement Tracker]: onTrackingToggle 'User Levels': isOn=false -> newState=true
+04:08:39 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 11 categories, 149 achievements saved
+--- 2 ---
+04:08:43 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'User Levels': isTracked=true
+04:08:45 INFO  [Main] [Achievement Tracker]: onTrackingToggle 'User Levels': isOn=true -> newState=false
+04:08:45 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 11 categories, 149 achievements saved
+--- 3 ---
+04:08:52 INFO  [Main] [Achievement Tracker]: AchievementMenu::onTrackingToggle: name='User Levels' catIndex=2 wasTracked=false newState=true
+04:08:52 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 11 categories, 149 achievements saved
+04:08:55 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'User Levels': isTracked=true
+04:09:00 INFO  [Main] [Achievement Tracker]: AchievementMenu::onTrackingToggle: name='User Levels' catIndex=2 wasTracked=true newState=false
+04:09:00 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 11 categories, 149 achievements saved
+04:09:02 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'User Levels': isTracked=false
+04:09:06 INFO  [Main] [Achievement Tracker]: AchievementMenu::onTrackingToggle: name='User Levels' catIndex=2 wasTracked=false newState=true
+04:09:06 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 11 categories, 149 achievements saved
+04:09:08 INFO  [Main] [Achievement Tracker]: addTrackingToggle 'User Levels': isTracked=true
+04:09:09 INFO  [Main] [Achievement Tracker]: onTrackingToggle 'User Levels': isOn=true -> newState=false
+04:09:09 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 11 categories, 149 achievements saved
+04:09:15 INFO  [Main] [Achievement Tracker]: AchievementMenu::onTrackingToggle: name='User Levels' catIndex=2 wasTracked=false newState=true
+04:09:15 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 11 categories, 149 achievements saved
+04:09:17 INFO  [Main] [Achievement Tracker]: AchievementMenu::onTrackingToggle: name='User Levels' catIndex=2 wasTracked=true newState=false
+04:09:17 INFO  [Main] [Achievement Tracker]: TrackingManager::save() -> 11 categories, 149 achievements saved
+---
+
+
+Del 3 para abajo, hice el test de activar manual, ir al scroll, verificar activación (correcto), desactivar desde scroll, volver al manual, verificar desactivación (correcto). Pero está raro el scroll, porque debo activarlo 2 veces para que "funcione" la sync entre el manual y desde el scroll, verifica el comportamiento con el log
+
+
+Bien, está funcionando, solo que no se actualiza inmediatamente, sino que si cierro el menú del mod o cambio de pestaña a una diferente a la de scroll ahí actualiza, habría que implementar una especie de "hot reload" para que funcione?

@@ -1,0 +1,93 @@
+{
+	"geode": "5.7.1",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081",
+		"ios": "2.2081"
+	},
+	"id": "josephjmrg.achievement_tracker",
+	"name": "Achievement Tracker",
+	"version": "v2.4.0",
+	"developer": "JosephJMRG",
+	"description": "A fork of Achievements Reimagined (by TheRisingLegend) that adds achievement tracking, progress notifications, and a comprehensive tracking dashboard.",
+	"links": {
+		"source": "https://github.com/TheRisingLegend/achievements-reimagined"
+	},
+		"resources": {
+		"sprites": [
+			"resources/*.png",
+			"preview1.png",
+			"preview2.png",
+			"preview3.png",
+			"preview4.png",
+			"preview5.png",
+			"preview6.png",
+			"preview7.png"
+		]
+	},
+	"tags": [
+		"enhancement",
+		"interface",
+		"offline"
+	],
+	"incompatibilities": {
+		"limegradient.betterachievements": {
+			"breaking": true,
+			"version": ">=1.0.0"
+		}
+	},
+	"settings": {
+		"visual-title": {
+			"name": "Visual Settings",
+			"type": "title",
+			"description": "These settings change the visual appearance of the achievements menu."
+		},
+		"use-player-colors": {
+			"name": "Use Player Colors",
+			"description": "Use your player colors for progress bars and icons.",
+			"type": "bool",
+			"default": true
+		},
+		"summary-page-first": {
+			"name": "Summary Page First",
+			"description": "Show the summary page first when opening the achievements menu, instead of the categories.",
+			"type": "bool",
+			"default": false
+		},
+		"hide-category-count": {
+			"name": "Hide Category Progress Counts",
+			"description": "Hide the counts on each button of how many achievements you have completed in a category.",
+			"type": "bool",
+			"default": false
+		},
+		"all-discrete": {
+			"name": "No Progress Bars",
+			"description": "Show all achievements with their own boxes instead of combining into a progress bar when possible. (Not recommended but you have free will so...)",
+			"type": "bool",
+			"default": false
+		},
+		"other-title": {
+			"name": "Other Settings",
+			"type": "title"
+		},
+		"show-secrets": {
+			"name": "Show Secrets",
+			"description": "Use descriptions that reveal how to complete secret achievements, such as vault codes.",
+			"type": "bool",
+			"default": false,
+			"requires-restart": true
+		},
+		"show_uncompleted_first":{
+			"name": "Show Uncompleted Achievements First",
+			"description": "Show uncompleted achievements first in the list, then completed ones. (Does not apply to categories that use a progress bar)",
+			"type": "bool",
+			"default": false
+		},
+		"tracking-title": {
+			"name": "Tracking Settings",
+			"type": "title",
+			"description": "Settings related to the achievement tracking system."
+		}
+	}
+}
