@@ -48,3 +48,9 @@ If you find any bugs or have a suggestion, please open an issue on [GitHub](http
 <img src="preview3.png" width="350" alt="preview3" />
 
 <img src="preview4.png" width="350" alt="preview4" />
+
+<img src="preview5.png" width="350" alt="preview5" />
+
+<img src="preview6.png" width="350" alt="preview6" />
+
+<img src="preview7.png" width="350" alt="preview7" />
