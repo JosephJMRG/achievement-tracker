@@ -3,16 +3,14 @@
 #include "popups/PathPopup.hpp"
 #include "popups/ProgressPopup.hpp"
 #include "popups/ShardPopup.hpp"
-#include "TrackingManager.hpp"
-#include "ProgressCalculator.hpp"
+#include "Utils.hpp"
+#include <tuple>
 
 using namespace geode::prelude;
 
 bool AchievementMenu::init() {
     if (!Popup::init(450.f, 280.f))
         return false;
-
-    m_achievementManager = AchievementManager::sharedState();
 
     buildSharedCategories();
     m_achievementCategories = s_achievementCategories;
@@ -162,29 +160,18 @@ void AchievementMenu::createSummaryPage() {
         /* Progress fraction */
         int total = 0;
         int completed = 0;
-        if (std::get<1>(summaryTiles[i]) == "Geometry Dash") {
-            for (auto category : m_achievementCategories) {
-                if (category.name == "Geometry Dash Meltdown" || category.name == "Geometry Dash World" || category.name == "Geometry Dash Subzero") {
-                    continue;
-                }
-                for (auto achievement : category.achievements) {
-                    total++;
-                    if (achievementManager->isAchievementEarned(achievement->id.c_str())) {
-                        completed++;
-                    }
-                }
+        for (auto& cat : m_achievementCategories) {
+            bool include = false;
+            if (std::get<1>(summaryTiles[i]) == "Geometry Dash") {
+                include = cat.name != "Geometry Dash Meltdown"
+                       && cat.name != "Geometry Dash World"
+                       && cat.name != "Geometry Dash Subzero";
+            } else {
+                include = cat.name == std::get<1>(summaryTiles[i]);
             }
-        } else {
-            for (auto category : m_achievementCategories) {
-                if (category.name == std::get<1>(summaryTiles[i])) {
-                    for (auto achievement : category.achievements) {
-                        total++;
-                        if (achievementManager->isAchievementEarned(achievement->id.c_str())) {
-                            completed++;
-                        }
-                    }
-                }
-            }
+            if (!include) continue;
+            total += (int)cat.achievements.size();
+            completed += countEarnedAchievements(cat.achievements);
         }
         CCNode* progressText = createFractionLabel(completed, total);
         progressText->setID("progress-" + std::get<0>(summaryTiles[i]));
@@ -222,8 +209,6 @@ void AchievementMenu::createTrackingPage() {
     subTitle->setPosition({trackingPage->getContentWidth() / 2, trackingPage->getContentHeight()});
     trackingPage->addChild(subTitle);
 
-    auto& tm = *TrackingManager::get();
-
     struct CatInfo {
         int catIndex;
         int totalCount;
@@ -236,12 +221,7 @@ void AchievementMenu::createTrackingPage() {
         auto& cat = m_achievementCategories[i];
         int total = (int)cat.achievements.size();
         if (total == 0) continue;
-        int earned = 0;
-        for (auto* ach : cat.achievements) {
-            if (achievementManager->isAchievementEarned(ach->id.c_str())) {
-                earned++;
-            }
-        }
+        int earned = countEarnedAchievements(cat.achievements);
         CatInfo info{i, total, earned};
         if (earned == total)
             completed.push_back(info);
@@ -251,9 +231,9 @@ void AchievementMenu::createTrackingPage() {
 
     // Sort incomplete: tracked first, then by completion % descending
     std::stable_sort(incomplete.begin(), incomplete.end(),
-        [&tm, this](const CatInfo& a, const CatInfo& b) {
-            bool aT = tm.isCategoryTracked(m_achievementCategories[a.catIndex].name);
-            bool bT = tm.isCategoryTracked(m_achievementCategories[b.catIndex].name);
+        [this](const CatInfo& a, const CatInfo& b) {
+            bool aT = isCategoryTracked(m_achievementCategories[a.catIndex].name);
+            bool bT = isCategoryTracked(m_achievementCategories[b.catIndex].name);
             if (aT != bT) return aT && !bT;
             float pctA = a.totalCount > 0 ? (float)a.earnedCount / (float)a.totalCount : 0.f;
             float pctB = b.totalCount > 0 ? (float)b.earnedCount / (float)b.totalCount : 0.f;
@@ -268,7 +248,6 @@ void AchievementMenu::createTrackingPage() {
     );
 
     // --- Headers (static, outside scroll) ---
-    float colGap = 10.f;
     float colPad = 8.f;
     float colW = (trackingPage->getContentWidth() - 22.f - colPad) / 2.f;
     float hdrY = trackingPage->getContentHeight() - 8.f;
@@ -299,7 +278,6 @@ void AchievementMenu::createTrackingPage() {
     auto cl = scrollLayer->m_contentLayer;
 
     // --- Layout constants ---
-    float sidePad = 0.f;
     float cardW = colW - 8.f;
     float cardH = 70.f;
     float cardGap = 15.f;
@@ -443,7 +421,7 @@ void AchievementMenu::createTrackingPage() {
 
         // --- Track toggle (checkbox) — top-right (hidden when 100% complete) ---
         if (!isComplete) {
-            bool isTracked = tm.isCategoryTracked(cat.name);
+            bool isTracked = isCategoryTracked(cat.name);
             auto checkSprite = CCSprite::createWithSpriteFrameName(
                 isTracked ? "GJ_checkOn_001.png" : "GJ_checkOff_001.png"
             );
@@ -504,10 +482,9 @@ void AchievementMenu::onTrackingToggle(CCObject* sender) {
     auto button = static_cast<CCMenuItemSpriteExtra*>(sender);
     int catIndex = button->getTag();
     auto& cat = m_achievementCategories[catIndex];
-    auto& tm = *TrackingManager::get();
 
     // Read current state and flip it
-    bool wasTracked = tm.isCategoryTracked(cat.name);
+    bool wasTracked = isCategoryTracked(cat.name);
     bool newState = !wasTracked;
 
     log::info("AchievementMenu::onTrackingToggle: name='{}' catIndex={} wasTracked={} newState={}", cat.name, catIndex, wasTracked, newState);
@@ -520,8 +497,8 @@ void AchievementMenu::onTrackingToggle(CCObject* sender) {
         )
     );
 
-    // Update category + all achievements in a single save
-    tm.setCategoryTrackedBatch(cat.name, newState);
+    // Update category tracking
+    setCategoryTracked(cat.name, newState);
 
     // Schedule refresh for next frame (safer than refreshing immediately while inside a callback)
     this->scheduleOnce(schedule_selector(AchievementMenu::doDelayedRefreshTracking), 0.f);
@@ -562,35 +539,16 @@ void AchievementMenu::addCategoryButtons(CCMenu* menuPage, std::string pageTitle
             buttonSprite->addChild(logo);
 
             if (m_achievementCategories[i].name == "Jumps") {
-                GJItemIcon* jumpingIcon = GJItemIcon::create(UnlockType::Cube, gameManager->getPlayerFrame(), gameManager->colorForIdx(gameManager->getPlayerColor()), gameManager->colorForIdx(gameManager->getPlayerColor2()), true, false, false, gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
-
-                // Jank way to set glow cause not sure how to do that in the above create
-                CCObject* child;
-                if (gameManager->m_playerGlow) {
-                    CCObject* child;
-                    for (auto child : CCArrayExt(jumpingIcon->getChildren())) {
-                        if (auto spr = typeinfo_cast<SimplePlayer*>(child)) {
-                            spr->setGlowOutline(gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
-                        }
-                    }
-                }
-
-                jumpingIcon->setRotation(50.f);
+                auto* jumpingIcon = createJumpsIcon();
                 jumpingIcon->setPosition({40, 60});
                 logo->addChild(jumpingIcon);
             }
         }
 
         // Calculate some values for the checkmark and progress fraction
-        bool isCategoryCompleted = true;
-        for (const Achievement* ach : m_achievementCategories[i].achievements) {
-            if (!achievementManager->isAchievementEarned(ach->id.c_str())) {
-                isCategoryCompleted = false;
-            } else {
-                completedAchievementsInCategory++;
-                completedAchievementsInPage++;
-            }
-        }
+        completedAchievementsInCategory = countEarnedAchievements(m_achievementCategories[i].achievements);
+        completedAchievementsInPage += completedAchievementsInCategory;
+        bool isCategoryCompleted = (completedAchievementsInCategory == totalAchievementsInCategory);
         // Checkmark for completed categories
         CCSprite* checkmark = CCSprite::createWithSpriteFrameName("GJ_completesIcon_001.png");
         checkmark->setID("checkmark");
@@ -743,55 +701,9 @@ void AchievementMenu::applyPage() {
             navButton->setNormalImage(i == m_categoryPage ? CCSprite::createWithSpriteFrameName("gj_navDotBtn_on_001.png") : CCSprite::createWithSpriteFrameName("gj_navDotBtn_off_001.png"));
         }
     }
-
     // arrow visibility
     m_navMenu->getChildByID("left-arrow")->setVisible(m_categoryPage > 0);
     m_navMenu->getChildByID("right-arrow")->setVisible(m_categoryPage < m_categoriesMenu.size() - 1);
-}
-
-
-
-
-
-Category* AchievementMenu::getCategoryForAchievement(const std::string& id, const std::string& achievedDescription) {
-    std::string sub;
-    std::stringstream ss(id);
-    std::getline(ss, sub, '.');
-    std::getline(ss, sub, '.');
-    std::getline(ss, sub, '.');
-
-    std::string generic;
-    for (auto it = sub.begin(); it < sub.end(); it++) {
-        auto c = *it;
-        if (c >= '0' && c <= '9') {
-            generic += "#";
-        } else {
-            generic += c;
-        }
-    }
-
-    if (generic.find("shard") != std::string::npos)
-        return &m_achievementCategories[19];  // Shards
-    if (generic == "path##")
-        return &m_achievementCategories[20];  // Paths
-
-    // 'Players destroyed' achievements are grouped in with the secret achievements, so take those out based on their unlock description
-    // Additionally, some 'Vault' achievements are grouped in with the secret achievements
-    for (Category& cat : m_achievementCategories) {
-        for (std::string id : cat.identifiers) {
-            if (generic == id) {
-                if (cat.name == "Secret" && achievedDescription.find("Destroyed") != std::string::npos)
-                    return &m_achievementCategories[27];  // Players Destroyed
-
-                if (cat.name == "Secret" && achievedDescription.find("Vault") != std::string::npos)
-                    return &m_achievementCategories[26];  // Vaults
-
-                return &cat;
-            }
-        }
-    }
-
-    return nullptr;
 }
 
 void AchievementMenu::addCornerSprites() {

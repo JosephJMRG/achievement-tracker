@@ -1,5 +1,49 @@
 # Changelog
 
+## v3.0.1
+
+### Fixed
+- **Category popup UI restored**: Main Levels, Tower Levels, Geometry Dash Meltdown/World/SubZero, Friends, Creator, Vaults, Secret, Misc, and Steam Exclusive categories now display their original paginated tile grid layout with icon previews, descriptions, and completion checkmarks
+- Removed unused `AchievementList` module that replaced the tile grid during the refactor
+
+## v3.0.0
+
+### Changed
+- **Major refactor complete**: all internal subsystems now use native GD APIs and shared utility functions
+- **Over 1,100 lines removed** across the entire codebase
+- Verified complete coverage of all 570 GD achievements across every category definition
+- **Dead code removed**: unused stat limit/percent calculations cleaned from ProgressCalculator
+
+## v2.7.0
+
+### Changed
+- **Toast system rebuilt from scratch**: new `TrackingToast` with animated progress bars, percentage counters, stat labels, and slide-in/out transitions
+- **Toast persistence fixed**: uses GD's own overlay layer to survive scene transitions reliably, replacing previous fragile reparenting logic
+- **Stat toasts are now silent**: achievement sounds play only through GD's native achievement system; stat progress notifications display visually without audio
+
+### Removed
+- Deferred toast scheduling system (no longer needed with overlay-based persistence)
+- Previous reparent-based scene transition handling
+
+## v2.6.0
+
+### Changed
+- **Achievement list rebuilt** using `BoomListView` + native `AchievementCell` for consistent visual integration with the base game
+- **Path, Shard, and Progress popups simplified**: shared helper utilities eliminate duplicated layout and rendering code across all popups
+- **Achievement icon rendering consolidated** into a single reusable builder that handles label badges, earned/unearned states, and corner decorations
+- **Progress bar rendering unified** across all popups with consistent sizing, color tinting, and inset fill behavior
+
+## v2.5.0
+
+### Changed
+- **Achievement detection** now leverages GD's built-in achievement validation pipeline instead of custom stat-matching logic
+- **Notification pipeline** replaced with GD's native `AchievementNotifier` for achievement completion toasts
+- **Custom notification system removed**: all notification logic consolidated into existing GD mechanisms
+
+### Removed
+- Legacy `NotificationSystem` module (fully replaced by native APIs)
+- Duplicate stat validation code
+
 ## v2.4.0
 
 ### Added

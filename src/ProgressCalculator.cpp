@@ -26,36 +26,28 @@ UnlockType unlockTypeFromString(const std::string& str) {
 }
 
 // ── Capa 2: Calculo unificado de progreso ──
-ProgressResult computeCategoryProgress(
+int computeCategoryProgress(
     const std::string& displayType,
     const std::vector<Achievement*>& achievements,
     const std::string& statKey,
     int goalHint)
 {
-    ProgressResult result;
-    result.total = static_cast<int>(achievements.size());
-
     if (displayType == "progress" && !statKey.empty()) {
         // Progreso basado en un stat global (ej: estrellas, diamantes, etc.)
-        int current = (statKey == "followed_creators")
+        return (statKey == "followed_creators")
             ? gameLevelManager->m_followedCreators->count()
             : gameStatsManager->getStat(statKey.c_str());
-        int goal = goalHint;
-        if (goal == 0 && !achievements.empty()) {
-            goal = achievements.back()->unlockValue;
-        }
-        result.completed = current;
-        result.total = goal;
-        result.percentage = (goal > 0) ? std::min(100, static_cast<int>(100.f * current / goal)) : 0;
     } else {
-        // Conteo simple de achievements earned (distinct, shard, path, progress sin statKey, fallback)
-        for (auto* ach : achievements) {
-            if (achievementManager->isAchievementEarned(ach->id.c_str())) {
-                result.completed++;
-            }
-        }
-        result.percentage = (result.total > 0) ? static_cast<int>(100.f * result.completed / result.total) : 0;
+        return countEarnedAchievements(achievements);
     }
+}
 
-    return result;
+// Get the official target limit for an achievement from GD's data
+int getAchievementLimit(const std::string& achievementId) {
+    return AchievementManager::sharedState()->limitForAchievement(achievementId.c_str());
+}
+
+// Get the official completion percentage (0-100) for an achievement from GD's data
+int getAchievementPercent(const std::string& achievementId) {
+    return AchievementManager::sharedState()->percentForAchievement(achievementId.c_str());
 }

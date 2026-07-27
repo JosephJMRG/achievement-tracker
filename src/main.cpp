@@ -3,12 +3,9 @@
 #include <Geode/modify/MenuLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GameStatsManager.hpp>
-#include <Geode/binding/AchievementNotifier.hpp>
-#include <Geode/modify/AppDelegate.hpp>
+#include "TrackingToast.hpp"
 #include "AchievementMenu.hpp"
 #include "popups/AchievementCategoryPopup.hpp"
-#include "NotificationSystem.hpp"
-#include "TrackingManager.hpp"
 #include "Utils.hpp"
 
 using namespace geode::prelude;
@@ -20,6 +17,9 @@ using namespace geode::prelude;
 static int s_targetKey = 0xBC; // VK_OEM_COMMA
 
 $on_mod(Loaded) {
+    // One-time migration from old JSON tracking data to GameManager variables
+    migrateTrackingData();
+
     auto keyStr = Mod::get()->getSettingValue<std::string>("toggle-key");
 
     // Map setting string to Windows VK code
@@ -68,9 +68,6 @@ class $modify(AchievementMenuLayer, MenuLayer) {
     bool init() {
         if (!MenuLayer::init()) return false;
 
-        // Flush any deferred toasts from gameplay (onQuit / levelComplete)
-        NotificationSystem::get()->flushPendingToasts();
-
 #if DEBUG_TOASTS
         // Debug: add test toast buttons in the top-left corner
         auto winSize = CCDirector::sharedDirector()->getWinSize();
@@ -116,11 +113,9 @@ class $modify(AchievementMenuLayer, MenuLayer) {
             if (ach->unlockValue > goal) goal = ach->unlockValue;
         }
         if (goal <= 0) return;
-        int oldVal = goal * (60 + rand() % 16) / 100;
         int newVal = goal * (80 + rand() % 16) / 100;
-        if (newVal <= oldVal) newVal = oldVal + goal / 20;
         if (newVal > goal) newVal = goal;
-        NotificationSystem::get()->showToast(cat, oldVal, newVal, goal);
+        TrackingToast::get()->showToast(cat, 0, newVal, goal);
     }
 
     void onDebugMultiToast(CCObject*) {
@@ -139,9 +134,8 @@ class $modify(AchievementMenuLayer, MenuLayer) {
             }
             if (goal <= 0) continue;
             int pctMin = 30 + i * 20;
-            int oldVal = goal * pctMin / 100;
             int newVal = goal * (pctMin + 20) / 100;
-            NotificationSystem::get()->showToast(cat, oldVal, newVal, goal);
+            TrackingToast::get()->showToast(cat, 0, newVal, goal);
         }
     }
 #endif
@@ -150,17 +144,6 @@ class $modify(AchievementMenuLayer, MenuLayer) {
 // Global keyboard hook
 class $modify(CCKeyboardDispatcher) {
     bool dispatchKeyboardMSG(enumKeyCodes key, bool isKeyDown, bool isKeyRepeat, double timestamp) {
-        // FIX: When a toast is active, consume ESC/back before it reaches GD's handler.
-        // GD routes ESC through the scene tree and it can reach the toast's CCMenu,
-        // triggering onClose() → onHidden() → processQueue() → runAction() INSIDE
-        // CCActionManager::update() → corrupts the action manager's hash table → staged crash.
-        if (isKeyDown && !isKeyRepeat && static_cast<int>(key) == 27 /* VK_ESCAPE */) {
-            if (NotificationSystem::get()->hasActiveToast()) {
-                log::info("[Toast] ESC consumed — toast is active, blocking to prevent close+crash");
-                return true;
-            }
-        }
-
         if (isKeyDown && !isKeyRepeat && static_cast<int>(key) == s_targetKey) {
             auto scene = CCDirector::sharedDirector()->getRunningScene();
             if (!scene) return CCKeyboardDispatcher::dispatchKeyboardMSG(key, isKeyDown, isKeyRepeat, timestamp);
@@ -198,10 +181,7 @@ class $modify(CCKeyboardDispatcher) {
 // ─── Progress detection via GameStatsManager::incrementStat hook ───────────
 // GD calls incrementStat() every time a stat changes. We accumulate changes
 // during gameplay and show toasts when the player leaves the level.
-//
-// Persistence: toasts survive scene transitions by re-parenting via
-// AchievementNotifier::willSwitchToScene, the same mechanism GD uses
-// for its own AchievementBar popups.
+// Deferred toasts are flushed in MenuLayer::init when the player returns to menu.
 
 struct StatChange {
     int oldValue;  // value before first increment in this session
@@ -274,8 +254,7 @@ static void showAccumulatedToasts() {
         for (auto& cat : s_achievementCategories) {
             if (cat.statKey == key && cat.displayType == "progress") {
                 found = true;
-                // Only show toast for tracked categories
-                if (!TrackingManager::get()->isCategoryTracked(cat.name)) {
+                if (!isCategoryTracked(cat.name)) {
                     log::info("[Toast] {} changed but NOT tracked, skipping", cat.name);
                     break;
                 }
@@ -283,8 +262,9 @@ static void showAccumulatedToasts() {
                 int goal = getNextMilestone(cat, change.newValue);
                 log::info("[Toast] {} changed: {} -> {} (milestone: {})",
                     cat.name, change.oldValue, change.newValue, goal);
-                NotificationSystem::get()->showDeferredToast(
-                    const_cast<Category*>(&cat), change.oldValue, change.newValue, goal);
+                
+                // Show tracking toast with full visual (overlay survives scene transitions)
+                TrackingToast::get()->showToast(&cat, change.oldValue, change.newValue, goal);
                 break;
             }
         }
@@ -292,6 +272,11 @@ static void showAccumulatedToasts() {
             log::info("[Toast] No category found for statKey='{}' (value {} -> {})",
                 key, change.oldValue, change.newValue);
         }
+    }
+    // Force GD to re-evaluate achievements for all changed stats
+    for (auto& [key, change] : s_pendingChanges) {
+        if (change.newValue > change.oldValue)
+            GameStatsManager::sharedState()->checkAchievement(key.c_str());
     }
     s_pendingChanges.clear();
 }
@@ -302,6 +287,9 @@ static void showAccumulatedToasts() {
 class $modify(GameStatsManagerHook, GameStatsManager) {
     void incrementStat(char const* key, int amount) {
         GameStatsManager::incrementStat(key, amount);
+
+        // Force GD to re-evaluate achievements that depend on this stat
+        GameStatsManager::sharedState()->checkAchievement(key);
 
         std::string keyStr(key);
         auto* gsm = GameStatsManager::sharedState();
@@ -321,7 +309,6 @@ class $modify(GameStatsManagerHook, GameStatsManager) {
         // No need to wait for a level exit — these are one-shot events.
         if (!s_inGameplay) {
             showAccumulatedToasts();
-            NotificationSystem::get()->flushPendingToasts();
         }
     }
 };
@@ -330,16 +317,16 @@ static bool s_toastsAlreadyFlushed = false;
 
 class $modify(PlayLayer) {
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
-        if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
-        log::info("[Toast] PlayLayer::init — starting tracking session");
-
-        // Clear any stale toast state from previous scene — the old toast node
-        // may have been destroyed when the scene transitioned.
-        NotificationSystem::get()->clearStaleState();
-
+        // IMPORTANT: Mark gameplay state BEFORE GD's init, because GD calls
+        // incrementStat("2", 1) (attempt counter) during PlayLayer::init().
+        // If s_inGameplay is still false at that point, the hook flushes
+        // the toast immediately instead of accumulating it for level end.
         s_inGameplay = true;
         s_pendingChanges.clear();
         s_toastsAlreadyFlushed = false;
+
+        if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
+        log::info("[Toast] PlayLayer::init — starting tracking session");
 
         // Snapshot GJGameLevel per-level values for fallback
         s_initLevelJumps = static_cast<int>(level->m_jumps.value());
@@ -360,113 +347,18 @@ class $modify(PlayLayer) {
 
         // If levelComplete already accumulated + flushed, skip
         if (!s_toastsAlreadyFlushed) {
-            log::info("[Toast] PlayLayer::onQuit — accumulating toasts");
             showAccumulatedToasts();
         }
 
         PlayLayer::onQuit();  // triggers scene/layer change
-
-        // Toasts will be flushed/re-parented by AchievementNotifierHook::willSwitchToScene
-        // when the level page scene loads — same mechanism GD uses for its own bars.
-        if (!NotificationSystem::get()->isPendingEmpty()) {
-            log::info("[Toast] PlayLayer::onQuit — deferred (waiting for willSwitchToScene)");
-        }
+        // Deferred toasts will be flushed in MenuLayer::init
     }
 
     void levelComplete() {
         PlayLayer::levelComplete();  // GD awards Stars, Coins, etc. here FIRST
 
         // Now s_pendingChanges has all stats (including completion-only ones)
-        log::info("[Toast] PlayLayer::levelComplete — accumulating toasts after GD awards");
         showAccumulatedToasts();
         s_toastsAlreadyFlushed = true;
-
-        // Flush after accumulation — toast will show on the current scene.
-        log::info("[Toast] PlayLayer::levelComplete — flushing after popup");
-        NotificationSystem::get()->flushPendingToasts();
-    }
-
-    void resetLevel() {
-        PlayLayer::resetLevel();
-    }
-};
-
-// ─── Re-parent toasts across scene transitions (like GD's AchievementBar) ─
-// When a scene transition happens, we extract the active toast's data
-// (category, values, remaining time) into a ToastData struct — no raw pointers.
-// On the next frame, we create a fresh toast on the new scene from that data.
-
-class ToastReparentHelper : public CCObject {
-public:
-    ToastData m_data;
-    bool m_hasData = false;
-    CCScene* m_scene = nullptr;
-
-    void scheduleReparent(const ToastData& data, CCScene* scene) {
-        // Cancel any pending reparent
-        if (m_scene) {
-            m_scene->release();
-            m_scene = nullptr;
-        }
-        auto* sched = CCDirector::sharedDirector()->getScheduler();
-        sched->unscheduleSelector(schedule_selector(ToastReparentHelper::executeReparent), this);
-
-        m_data = data;
-        m_hasData = true;
-        m_scene = scene;
-        m_scene->retain();
-
-        sched->scheduleSelector(schedule_selector(ToastReparentHelper::executeReparent),
-                                this, 0.f, false);
-    }
-
-    void executeReparent(float) {
-        // One-shot: unschedule immediately
-        CCDirector::sharedDirector()->getScheduler()->unscheduleSelector(
-            schedule_selector(ToastReparentHelper::executeReparent), this);
-
-        if (!m_hasData || !m_scene || !m_data.category) {
-            cleanupHelper();
-            return;
-        }
-
-        // Create a fresh toast on the new scene from extracted data.
-        // No raw pointers — the old node is long gone by now.
-        log::info("[Toast] executeReparent: creating fresh toast on new scene for {}", m_data.category->name);
-        NotificationSystem::get()->showToastResumed(
-            m_data.category, m_data.oldValue, m_data.newValue,
-            m_data.goalValue, m_data.remainingTime);
-
-        cleanupHelper();
-    }
-
-    void cleanupHelper() {
-        m_hasData = false;
-        if (m_scene) { m_scene->release(); m_scene = nullptr; }
-        CCDirector::sharedDirector()->getScheduler()->unscheduleSelector(
-            schedule_selector(ToastReparentHelper::executeReparent), this);
-    }
-};
-
-static ToastReparentHelper* s_reparentHelper = nullptr;
-
-class $modify(AppDelegateHook, AppDelegate) {
-    void willSwitchToScene(CCScene* scene) {
-        AppDelegate::willSwitchToScene(scene);
-
-        auto* ns = NotificationSystem::get();
-
-        // 1) Extract active toast data immediately (no pointer storage)
-        ToastData data;
-        if (ns->detachForReparent(data)) {
-            log::info("[Toast] willSwitchToScene: deferring toast reparent to next frame");
-            if (!s_reparentHelper) {
-                s_reparentHelper = new ToastReparentHelper();
-            }
-            s_reparentHelper->scheduleReparent(data, scene);
-        }
-
-        // 2) Flush any deferred toasts directly onto the new scene
-        ns->flushToScene(scene);
     }
 };

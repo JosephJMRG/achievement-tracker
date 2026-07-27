@@ -22,6 +22,9 @@ bool DistinctPopup::init(AchievementMenu* achievementMenu, Category* category) {
     m_category = category;
     m_numAchievements = m_category->achievements.size();
 
+    // ── Sorting ──
+
+    // Creator-specific order
     if (m_category->name == "Creator") {
         std::unordered_map<std::string, int> creatorAchievementsOrder = {
             {"geometry.ach.submit", 0},
@@ -32,36 +35,38 @@ bool DistinctPopup::init(AchievementMenu* achievementMenu, Category* category) {
             {"geometry.ach.creator06", 5},
             {"geometry.ach.creator02", 6}};
 
-        std::sort(m_category->achievements.begin(), m_category->achievements.end(), [&](Achievement* a, Achievement* b) {
-            return creatorAchievementsOrder[a->id] < creatorAchievementsOrder[b->id];
-        });
+        std::sort(m_category->achievements.begin(), m_category->achievements.end(),
+                  [&](Achievement* a, Achievement* b) {
+                      return creatorAchievementsOrder[a->id] < creatorAchievementsOrder[b->id];
+                  });
     }
 
+    // Show uncompleted first
     if (Mod::get()->getSettingValue<bool>("show_uncompleted_first")) {
-        std::stable_sort(m_category->achievements.begin(), m_category->achievements.end(), [](Achievement* a, Achievement* b) {
-            bool aEarned = achievementManager->isAchievementEarned(a->id.c_str());
-            bool bEarned = achievementManager->isAchievementEarned(b->id.c_str());
-            return !aEarned && bEarned;
-        });
+        std::stable_sort(m_category->achievements.begin(), m_category->achievements.end(),
+                         [](Achievement* a, Achievement* b) {
+                             bool aEarned = achievementManager->isAchievementEarned(a->id.c_str());
+                             bool bEarned = achievementManager->isAchievementEarned(b->id.c_str());
+                             return !aEarned && bEarned;
+                         });
     }
+
+    // ── Header elements ──
 
     createTitle();
 
-    // Progress percent and fraction
     int numAchievementsComplete = 0;
     for (Achievement* ach : m_category->achievements) {
         if (achievementManager->isAchievementEarned(ach->id.c_str())) {
             numAchievementsComplete++;
         }
     }
-
     addProgressText(numAchievementsComplete, m_numAchievements);
-
     addLogo();
-
     addCornerSprites();
 
-    // create pages
+    // ── Paginated tile grid ──
+
     m_maxIconsPerPage = 10;
     m_numPages = (m_numAchievements + m_maxIconsPerPage - 1) / m_maxIconsPerPage;
     for (int i = 0; i < m_numPages; i++) {
@@ -74,8 +79,8 @@ bool DistinctPopup::init(AchievementMenu* achievementMenu, Category* category) {
         page->setVisible(i == 0);
     }
 
-    addTrackingRow();
     addNavigation();
+    addTrackingRow();
 
     return true;
 }
@@ -158,10 +163,9 @@ CCNode* DistinctPopup::createPage(int pageNum) {
             bool isIcon = std::find(playerUnlockTypes.begin(), playerUnlockTypes.end(), currAchievement->unlockType) != playerUnlockTypes.end();
 
             if (usePlayerColors) {
-                unlockItem = GJItemIcon::create(currAchievement->unlockType, currAchievement->unlockID, gameManager->colorForIdx(gameManager->getPlayerColor()), gameManager->colorForIdx(gameManager->getPlayerColor2()), isIcon, false, false, gameManager->colorForIdx(gameManager->getPlayerGlowColor()));  // p4: is icon?, p5: idk, p6: hide color number? ----- Not sure how to turn on glow, so doing that separately below
+                unlockItem = GJItemIcon::create(currAchievement->unlockType, currAchievement->unlockID, gameManager->colorForIdx(gameManager->getPlayerColor()), gameManager->colorForIdx(gameManager->getPlayerColor2()), isIcon, false, false, gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
 
                 if (gameManager->m_playerGlow) {
-                    CCObject* child;
                     for (auto child : CCArrayExt(unlockItem->getChildren())) {
                         if (auto spr = typeinfo_cast<SimplePlayer*>(child)) {
                             spr->setGlowOutline(gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
@@ -184,7 +188,6 @@ CCNode* DistinctPopup::createPage(int pageNum) {
             this,
             menu_selector(DistinctPopup::onIcon));
 
-        // This is for the callback function
         IconCallbackData* data = new IconCallbackData(currAchievement->unlockType, currAchievement->unlockID, currAchievement->achievedDescription);
         data->autorelease();
         unlockButton->setUserObject(data);
@@ -200,4 +203,3 @@ CCNode* DistinctPopup::createPage(int pageNum) {
 
     return page;
 }
-

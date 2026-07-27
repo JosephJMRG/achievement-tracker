@@ -9,9 +9,9 @@ class DistinctPopup : public AchievementCategoryPopup {
    protected:
     bool init(AchievementMenu* achievementMenu, Category* category);
 
+    cocos2d::CCNode* createPage(int pageNum) override;
+
    public:
     static DistinctPopup* create(AchievementMenu* achievementMenu, Category* category);
-
-    cocos2d::CCNode* createPage(int pageNum);
 };
 #endif

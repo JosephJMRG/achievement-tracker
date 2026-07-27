@@ -1,7 +1,8 @@
 #include "AchievementCategoryPopup.hpp"
 
-#include "../AchievementMenu.hpp" // will forward-declare AchievementMenu
+#include "../AchievementMenu.hpp"
 #include "../ProgressCalculator.hpp"
+#include "../Utils.hpp"
 
 using namespace geode::prelude;
 
@@ -61,20 +62,7 @@ void AchievementCategoryPopup::addLogo() {
         m_mainLayer->addChild(logo);
 
         if (m_category->name == "Jumps") {
-            GJItemIcon* jumpingIcon = GJItemIcon::create(UnlockType::Cube, gameManager->getPlayerFrame(), gameManager->colorForIdx(gameManager->getPlayerColor()), gameManager->colorForIdx(gameManager->getPlayerColor2()), true, false, false, gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
-
-            // Jank way to set glow cause not sure how to do that in the above create
-            CCObject* child;
-            if (gameManager->m_playerGlow) {
-                CCObject* child;
-                for (auto child : CCArrayExt(jumpingIcon->getChildren())) {
-                    if (auto spr = typeinfo_cast<SimplePlayer*>(child)) {
-                        spr->setGlowOutline(gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
-                    }
-                }
-            }
-
-            jumpingIcon->setRotation(50.f);
+            auto* jumpingIcon = createJumpsIcon();
             jumpingIcon->setPosition({40, 60});
             logo->addChild(jumpingIcon);
         }
@@ -160,12 +148,6 @@ void AchievementCategoryPopup::onIcon(CCObject* sender) {
     if (!popup) return;
 
     popup->show();
-
-    // TextArea* description = typeinfo_cast<TextArea*>(popup->m_mainLayer->getChildByID("description-area"));
-    // if (!description) return;
-
-    // if (gameManager->isIconUnlocked(data->unlockID, gameManager->unlockTypeToIconType(static_cast<int>(data->unlockType))))
-    //     description->setString(data->unlockedDescription);
 
     std::vector<UnlockType> playerUnlockTypes = {UnlockType::Cube, UnlockType::Ship, UnlockType::Ball, UnlockType::Bird, UnlockType::Dart, UnlockType::Robot, UnlockType::Spider, UnlockType::Swing};
 
@@ -294,13 +276,11 @@ void AchievementCategoryPopup::addTrackingRow() {
     toggleBtn->setScale(0.65f);
     trackingNode->addChild(toggleBtn);
 
-    // Initialize state from TrackingManager (single source of truth)
-    auto* tm = TrackingManager::get();
-    bool tracked = tm->isCategoryTracked(m_category->name);
-    auto prog = computeCategoryProgress(
+    // Initialize state from GameManager (single source of truth)
+    bool tracked = isCategoryTracked(m_category->name);
+    int completedCount = computeCategoryProgress(
         m_category->displayType, m_category->achievements, m_category->statKey,
         m_category->achievements.empty() ? 0 : m_category->achievements.back()->unlockValue);
-    int completedCount = prog.completed;
     if (completedCount == m_numAchievements) {
         // Completed: hide toggle + label, show "¡Completed!" in gold instead
         toggleBtn->setVisible(false);
@@ -321,16 +301,14 @@ void AchievementCategoryPopup::addTrackingRow() {
 void AchievementCategoryPopup::onToggleCategoryTracked(CCObject* sender) {
     if (!m_category) return;
 
-    // Toggle via TrackingManager (single source of truth)
-    auto* tm = TrackingManager::get();
-    bool tracked = !tm->isCategoryTracked(m_category->name);
-    tm->setCategoryTracked(m_category->name, tracked);
+    // Toggle via GameManager (single source of truth)
+    bool tracked = !isCategoryTracked(m_category->name);
+    setCategoryTracked(m_category->name, tracked);
 
     // If completed, force toggle off and show completed icon instead
-    auto prog = computeCategoryProgress(
+    int completedCount = computeCategoryProgress(
         m_category->displayType, m_category->achievements, m_category->statKey,
         m_category->achievements.empty() ? 0 : m_category->achievements.back()->unlockValue);
-    int completedCount = prog.completed;
 
     if (completedCount == m_numAchievements) {
         // Completed: hide toggle + label, show "¡Completed!" in gold

@@ -264,60 +264,14 @@ cocos2d::CCNode* ShardPopup::createPage(int pageNum) {
     progressBar->setPosition({m_mainLayer->getContentWidth() / 2, 120.f});
     page->addChild(progressBar);
 
-    // Background (dark)
-    CCNode* progressBarBg = CCNode::create();
-    progressBarBg->setID("progress-bar-bg");
-    progressBarBg->setPosition({0, 0});
-    progressBar->addChild(progressBarBg);
-
     int numIconsOnPage = 5;
     int numDotsOnPage = numIconsOnPage + 1;
-
     float dotSpacing = std::min(50.f, 400.f / numDotsOnPage);
-
-    CCSprite* progressBarBgSpr = CCSprite::createWithSpriteFrameName("whiteSquare20_001.png");  // the long gray bar that acts as the background for the fill
-    progressBarBgSpr->setID("progress-bar-bg-sprite");
-    progressBarBgSpr->setScaleX(dotSpacing / 10 * numDotsOnPage - dotSpacing / 10);
-    progressBarBgSpr->setScaleY(0.5f);
-
-    progressBarBgSpr->setPosition({0, 0});
-    progressBarBgSpr->setColor({37, 20, 12});
-    progressBarBg->addChild(progressBarBgSpr);
-
-    for (int i = 0; i < numDotsOnPage; ++i) {
-        CCSprite* dotBgSpr = CCSprite::create("smallDot.png");  // the gray dots that mark each unlock point
-        dotBgSpr->setID("dot-bg-sprite-" + std::to_string(i));
-        dotBgSpr->setPosition({-dotSpacing * numIconsOnPage / 2.f + dotSpacing * i, 0});
-        dotBgSpr->setColor({37, 20, 12});
-        progressBarBg->addChild(dotBgSpr);
-
-        if (i != 0) {
-            CCSprite* verticalBarBgSpr = CCSprite::createWithSpriteFrameName("whiteSquare20_001.png");  // the vertical gray bars that connect the icons with the dots
-            verticalBarBgSpr->setID("vertical-bar-sprite-" + std::to_string(i));
-
-            if (i % 2 == 0) {  // alternate the vertical bars above and below
-                verticalBarBgSpr->setAnchorPoint({0.5f, 1});
-                verticalBarBgSpr->setPosition({-dotSpacing * numIconsOnPage / 2.f + dotSpacing * i, -10.f});
-            } else {
-                verticalBarBgSpr->setAnchorPoint({0.5f, 0});
-                verticalBarBgSpr->setPosition({-dotSpacing * numIconsOnPage / 2.f + dotSpacing * i, 10.f});
-            }
-
-            verticalBarBgSpr->setScaleX(0.1f);
-            verticalBarBgSpr->setScaleY(1.5f);
-            verticalBarBgSpr->setColor({37, 20, 12});
-            verticalBarBgSpr->setOpacity(50);
-            progressBarBg->addChild(verticalBarBgSpr);
-        }
-    }
+    progressBar->addChild(buildProgressBarBg({numDotsOnPage, numIconsOnPage, dotSpacing}));
 
     // Fill (player color or white)
     bool usePlayerColors = Mod::get()->getSettingValue<bool>("use-player-colors");
-
-    CCNode* progressBarFill = CCNode::create();
-    progressBarFill->setID("progress-bar-fill");
-    progressBarFill->setPosition({0, 0});
-    progressBar->addChild(progressBarFill);
+    ccColor3B fillColor = usePlayerColors ? gameManager->colorForIdx(gameManager->getPlayerColor()) : ccc3(255, 255, 255);
 
     int numAchievementsUnlocked = 0;
     for (int i = m_maxIconsPerPage * pageNum; i < m_maxIconsPerPage * (pageNum + 1); ++i) {
@@ -326,36 +280,11 @@ cocos2d::CCNode* ShardPopup::createPage(int pageNum) {
         }
     }
 
-    for (int i = 0; i <= numAchievementsUnlocked; ++i) {
-        CCSprite* dotFillSpr = CCSprite::create("smallDot.png");  // the colored dots that mark the reached unlock points
-        dotFillSpr->setID("dot-fill-sprite-" + std::to_string(i));
-        dotFillSpr->setPosition({-dotSpacing * numIconsOnPage / 2.f + dotSpacing * i, 0});
-        dotFillSpr->setColor(usePlayerColors ? gameManager->colorForIdx(gameManager->getPlayerColor()) : ccc3(255, 255, 255));
-        dotFillSpr->setScale(0.7f);
-        progressBarFill->addChild(dotFillSpr);
-    }
-
-    for (int i = 0; i < numDotsOnPage - 1; ++i) {
-        Achievement* currAchievement = m_category->achievements[i + pageNum * m_maxIconsPerPage];
-
-        float ratio;
-        if (i == 0)
-            ratio = std::min(1.f, float(progress) / currAchievement->unlockValue);
-        else
-            ratio = std::min(1.f, float(progress - m_category->achievements[i - 1 + pageNum * m_maxIconsPerPage]->unlockValue) / (currAchievement->unlockValue - m_category->achievements[i - 1 + pageNum * m_maxIconsPerPage]->unlockValue));
-
-        if (ratio < 0.f) break;
-
-        CCSprite* fillSpr = CCSprite::createWithSpriteFrameName("whiteSquare20_001.png");  // the colored bar that fills up to the next unlock point and marks the progress
-        fillSpr->setID("progress-bar-fill-sprite-" + std::to_string(i));
-        fillSpr->setAnchorPoint({0, 0.5f});
-        fillSpr->setPosition({-dotSpacing * numIconsOnPage / 2.f + dotSpacing * i, 0});
-        fillSpr->setColor(usePlayerColors ? gameManager->colorForIdx(gameManager->getPlayerColor()) : ccc3(255, 255, 255));
-        fillSpr->setScaleX(dotSpacing / 10 * ratio);
-        fillSpr->setScaleY(0.2f);
-
-        progressBarFill->addChild(fillSpr);
-    }
+    CCNode* progressBarFill = buildProgressFill(
+        numAchievementsUnlocked + 1, numDotsOnPage,
+        m_category->achievements, pageNum * m_maxIconsPerPage,
+        float(progress), {dotSpacing, float(numIconsOnPage), fillColor});
+    progressBar->addChild(progressBarFill);
 
     /* Player Sprites */
     CCMenu* playerMenu = CCMenu::create();
@@ -364,73 +293,25 @@ cocos2d::CCNode* ShardPopup::createPage(int pageNum) {
     page->addChild(playerMenu);
 
     const int unlockValues[] = {5, 15, 35, 65, 100};
+
     for (int i = 0; i < numIconsOnPage; ++i) {
         Achievement* currAchievement = m_category->achievements[i + pageNum * m_maxIconsPerPage];
-
-        // Create the lock
         bool earned = achievementManager->isAchievementEarned(currAchievement->id.c_str());
-        CCSprite* lock = CCSprite::createWithSpriteFrameName("GJ_lock_001.png");
-        lock->setID("lock-" + std::to_string(i));
-        lock->setZOrder(1);
 
-        // Create the icon
-        GJItemIcon* unlockItem;
-        bool usePlayerColors = Mod::get()->getSettingValue<bool>("use-player-colors");
+        CCMenuItemSpriteExtra* unlockButton = createAchievementIconButton(
+            currAchievement, earned, usePlayerColors, this, menu_selector(ShardPopup::onIcon), std::to_string(i));
 
-        if (earned) {
-            std::vector<UnlockType> playerUnlockTypes = {UnlockType::Cube, UnlockType::Ship, UnlockType::Ball, UnlockType::Bird, UnlockType::Dart, UnlockType::Robot, UnlockType::Spider, UnlockType::Swing, UnlockType::Jetpack};
-            bool isIcon = std::find(playerUnlockTypes.begin(), playerUnlockTypes.end(), currAchievement->unlockType) != playerUnlockTypes.end();
-
-            if (usePlayerColors) {
-                unlockItem = GJItemIcon::create(currAchievement->unlockType, currAchievement->unlockID, gameManager->colorForIdx(gameManager->getPlayerColor()), gameManager->colorForIdx(gameManager->getPlayerColor2()), isIcon, false, false, gameManager->colorForIdx(gameManager->getPlayerGlowColor()));  // p4: is icon?, p5: idk, p6: hide color number? ----- Not sure how to turn on glow, so doing that separately below
-
-                if (gameManager->m_playerGlow) {
-                    CCObject* child;
-                    for (auto child : CCArrayExt(unlockItem->getChildren())) {
-                        if (auto spr = typeinfo_cast<SimplePlayer*>(child)) {
-                            spr->setGlowOutline(gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
-                        }
-                    }
-                }
-            } else {
-                unlockItem = GJItemIcon::create(currAchievement->unlockType, currAchievement->unlockID, {175, 175, 175}, {255, 255, 255}, isIcon, false, false, {255, 255, 255});
-            }
-        } else {
-            unlockItem = GJItemIcon::createBrowserItem(currAchievement->unlockType, currAchievement->unlockID);
-
-            lock->setPosition({unlockItem->getContentWidth() / 2.f, unlockItem->getContentHeight() / 2.f});
-            unlockItem->addChild(lock);
-        }
-        unlockItem->setID("item-" + std::to_string(i));
-
-        CCMenuItemSpriteExtra* unlockButton = CCMenuItemSpriteExtra::create(
-            unlockItem,
-            this,
-            menu_selector(ShardPopup::onIcon));
-
-        // This is for the callback function
-        IconCallbackData* data = new IconCallbackData(currAchievement->unlockType, currAchievement->unlockID, currAchievement->achievedDescription);
-        data->autorelease();
-        unlockButton->setUserObject(data);
-
-        unlockButton->setID("unlock-sprite-" + std::to_string(i));
-        unlockButton->setPosition({-dotSpacing * numIconsOnPage / 2.f + dotSpacing * (i + 1), (i % 2 == 0) ? 40.f : -40.f});
-        unlockButton->m_baseScale = 0.7f;
-        unlockButton->setScale(0.7f);
+        float baseX = -dotSpacing * numIconsOnPage / 2.f + dotSpacing * (i + 1);
+        float baseY = (i % 2 == 0) ? 40.f : -40.f;
+        unlockButton->setPosition({baseX, baseY});
         playerMenu->addChild(unlockButton);
 
-        // Create the text that shows how much is needed to unlock - FIXED: center with max 3 rows
+        // Create the text that shows how much is needed to unlock
         CCLabelBMFont* unlockValue = CCLabelBMFont::create(formatWithCommas(unlockValues[i]).c_str(), "bigFont.fnt");
         unlockValue->setID("unlock-text-" + std::to_string(i));
         unlockValue->setScale(.25f);
-
-        // Position text above/below icon
-        float baseX = -dotSpacing * numIconsOnPage / 2.f + dotSpacing * (i + 1);
-        float baseY = (i % 2 == 0) ? 40.f : -40.f;
         float textYOffset = (i % 2 == 0) ? 18.f : -16.f;
-        float finalY = baseY + textYOffset;
-        
-        unlockValue->setPosition({baseX, finalY});
+        unlockValue->setPosition({baseX, baseY + textYOffset});
         playerMenu->addChild(unlockValue);
     }
 

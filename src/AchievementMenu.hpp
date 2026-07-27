@@ -4,7 +4,6 @@
 #include <Geode/Geode.hpp>
 
 #include "Utils.hpp"
-#include "TrackingManager.hpp"
 
 class AchievementMenu : public geode::Popup {
    protected:
@@ -13,13 +12,10 @@ class AchievementMenu : public geode::Popup {
    public:
     static AchievementMenu* create();
 
-    AchievementManager* m_achievementManager;
-
     std::vector<cocos2d::CCNode*> m_categoriesMenu;
     cocos2d::CCMenu* m_navMenu;
     cocos2d::CCMenu* m_navButtons;
     int m_categoryPage = 0;
-    int m_maxCategoriesPerPage = 12;
 
     void createCategoryMenu();
     void createSummaryPage();
@@ -36,7 +32,6 @@ class AchievementMenu : public geode::Popup {
     void applyPage();
 
     void addCornerSprites();
-    Category* getCategoryForAchievement(const std::string& id, const std::string& achievedDescription);
 
     // Inline helper: called by AchievementCategoryPopup on close
     void showArrows() {

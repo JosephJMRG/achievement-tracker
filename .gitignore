@@ -68,3 +68,8 @@ logo.pdn
 
 # Temp / backup files
 *RESTORED.txt
+
+# Misc folders and files
+docs
+gd_class_catalog.txt
+REFACTOR_PLAN.md

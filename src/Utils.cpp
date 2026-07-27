@@ -1,10 +1,9 @@
 #include "Utils.hpp"
 #include "ProgressCalculator.hpp"
-#include <sstream>
 
 using namespace geode::prelude;
 
-std::map<std::string, std::tuple<std::string, std::string>> betterDescriptions = {
+std::map<std::string, std::pair<std::string, std::string>> betterDescriptions = {
     // Secret
     {"geometry.ach.secret04", {"Find the hidden coin on the Coming Soon screen", "Found the hidden coin on the Coming Soon screen"}},
     {"geometry.ach.secret11", {"Find the secret by destroying this cube on the main menu", "Found the secret by destroying this cube on the main menu"}},
@@ -187,13 +186,12 @@ void buildSharedCategories() {
         if (!dict) continue;
 
         Achievement* ach = new Achievement();
-        ach->title = std::string(dict->valueForKey("title")->getCString());
         ach->id = std::string(dict->valueForKey("identifier")->getCString());
 
         std::string achievedDesc = std::string(dict->valueForKey("achievedDescription")->getCString());
         if (betterDescriptions.contains(ach->id)) {
-            ach->unachievedDescription = std::get<0>(betterDescriptions[ach->id]);
-            ach->achievedDescription = std::get<1>(betterDescriptions[ach->id]);
+            ach->unachievedDescription = betterDescriptions[ach->id].first;
+            ach->achievedDescription = betterDescriptions[ach->id].second;
         } else {
             ach->achievedDescription = achievedDesc;
             ach->unachievedDescription = std::string(dict->valueForKey("unachievedDescription")->getCString());
@@ -201,15 +199,15 @@ void buildSharedCategories() {
 
         Category* cat = nullptr;
         for (auto& c : s_achievementCategories) {
-            // Check if this achievement's generic ID matches the category
-            std::stringstream ss(ach->id);
-            std::string seg, sub;
-            std::getline(ss, sub, '.');
-            std::getline(ss, sub, '.');
-            std::getline(ss, sub, '.');
+            // Extract third dot-segment and replace digits with '#'
             std::string generic;
-            for (auto it = sub.begin(); it < sub.end(); it++) {
-                generic += (*it >= '0' && *it <= '9') ? '#' : *it;
+            size_t d1 = ach->id.find('.');
+            size_t d2 = (d1 != std::string::npos) ? ach->id.find('.', d1 + 1) : std::string::npos;
+            if (d2 != std::string::npos) {
+                size_t d3 = ach->id.find('.', d2 + 1);
+                std::string seg = ach->id.substr(d2 + 1,
+                    (d3 != std::string::npos ? d3 : ach->id.size()) - d2 - 1);
+                for (char ch : seg) generic += (ch >= '0' && ch <= '9') ? '#' : ch;
             }
 
             if (generic.find("shard") != std::string::npos && c.name == "Shards") { cat = &c; break; }
@@ -261,15 +259,101 @@ void buildSharedCategories() {
 
 // entry condition: description is from achievement that is part of a progress category
 int extractValue(const std::string& desc) {
-    static const std::regex numberRegex(R"((\d{1,3}(,\d{3})*|\d+))");
+    std::string num;
+    bool inNumber = false;
+    for (char c : desc) {
+        if (c >= '0' && c <= '9') {
+            num += c;
+            inNumber = true;
+        } else if (inNumber && c == ',') {
+            // skip thousand separators
+        } else if (inNumber) {
+            break;
+        }
+    }
+    if (num.empty()) return 1;
+    return numFromString<int>(num).unwrapOr(1);
+}
 
-    std::smatch match;
-    if (!std::regex_search(desc, match, numberRegex))
-        return 1;
+GJItemIcon* createAchievementIcon(const Achievement* ach, bool earned, bool usePlayerColors) {
+    static const std::vector<UnlockType> playerUnlockTypes = {
+        UnlockType::Cube, UnlockType::Ship, UnlockType::Ball, UnlockType::Bird,
+        UnlockType::Dart, UnlockType::Robot, UnlockType::Spider, UnlockType::Swing, UnlockType::Jetpack
+    };
 
-    std::string valueStr = match[1].str();
-    valueStr.erase(std::remove(valueStr.begin(), valueStr.end(), ','), valueStr.end());
-    return numFromString<int>(valueStr).unwrapOr(1);
+    if (earned) {
+        bool isIcon = std::find(playerUnlockTypes.begin(), playerUnlockTypes.end(), ach->unlockType) != playerUnlockTypes.end();
+        GJItemIcon* icon;
+        if (usePlayerColors) {
+            icon = GJItemIcon::create(ach->unlockType, ach->unlockID,
+                gameManager->colorForIdx(gameManager->getPlayerColor()),
+                gameManager->colorForIdx(gameManager->getPlayerColor2()),
+                isIcon, false, false, gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
+            if (gameManager->m_playerGlow) {
+                for (auto child : CCArrayExt(icon->getChildren())) {
+                    if (auto spr = typeinfo_cast<SimplePlayer*>(child)) {
+                        spr->setGlowOutline(gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
+                    }
+                }
+            }
+        } else {
+            icon = GJItemIcon::create(ach->unlockType, ach->unlockID,
+                {175, 175, 175}, {255, 255, 255}, isIcon, false, false, {255, 255, 255});
+        }
+        return icon;
+    } else {
+        return GJItemIcon::createBrowserItem(ach->unlockType, ach->unlockID);
+    }
+}
+
+CCMenuItemSpriteExtra* createAchievementIconButton(
+    Achievement* ach,
+    bool earned,
+    bool usePlayerColors,
+    CCObject* target,
+    SEL_MenuHandler selector,
+    const std::string& tag)
+{
+    GJItemIcon* unlockItem = createAchievementIcon(ach, earned, usePlayerColors);
+
+    if (!earned) {
+        auto* lock = CCSprite::createWithSpriteFrameName("GJ_lock_001.png");
+        lock->setID("lock-" + tag);
+        lock->setZOrder(1);
+        lock->setPosition({unlockItem->getContentWidth() / 2.f, unlockItem->getContentHeight() / 2.f});
+        unlockItem->addChild(lock);
+    }
+
+    unlockItem->setID("item-" + tag);
+
+    auto* button = CCMenuItemSpriteExtra::create(unlockItem, target, selector);
+    button->setID(tag.empty() ? "unlock-sprite" : "unlock-sprite-" + tag);
+    button->m_baseScale = 0.7f;
+    button->setScale(0.7f);
+
+    auto* data = new IconCallbackData(ach->unlockType, ach->unlockID, ach->achievedDescription);
+    data->autorelease();
+    button->setUserObject(data);
+
+    return button;
+}
+
+GJItemIcon* createJumpsIcon() {
+    GJItemIcon* icon = GJItemIcon::create(UnlockType::Cube, gameManager->getPlayerFrame(),
+        gameManager->colorForIdx(gameManager->getPlayerColor()),
+        gameManager->colorForIdx(gameManager->getPlayerColor2()),
+        true, false, false, gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
+
+    if (gameManager->m_playerGlow) {
+        for (auto child : CCArrayExt(icon->getChildren())) {
+            if (auto spr = typeinfo_cast<SimplePlayer*>(child)) {
+                spr->setGlowOutline(gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
+            }
+        }
+    }
+
+    icon->setRotation(50.f);
+    return icon;
 }
 
 // Find the next unearned milestone value in a progress category.
@@ -284,4 +368,177 @@ int getNextMilestone(const Category& cat, int currentValue) {
     }
     if (next != -1) return next;
     return currentValue; // all milestones reached
+}
+
+// ──── Category tracking (persisted via GameManager) ────
+// Uses GameManager::getGameVariable/setGameVariable so tracking state
+// is automatically saved in GD's own save file.
+
+static const std::string TRACKING_PREFIX = "at_track_";
+
+bool isCategoryTracked(const std::string& categoryName) {
+    return GameManager::get()->getGameVariable((TRACKING_PREFIX + categoryName).c_str());
+}
+
+void setCategoryTracked(const std::string& categoryName, bool tracked) {
+    GameManager::get()->setGameVariable((TRACKING_PREFIX + categoryName).c_str(), tracked);
+    log::info("Tracking: '{}' set to {}", categoryName, tracked);
+}
+
+void migrateTrackingData() {
+    // One-time migration from old Mod::get()->setSavedValue JSON format
+    // to GameManager::setGameVariable (persists in GD save).
+    auto json = Mod::get()->getSavedValue<matjson::Value>(
+        "tracking-data", matjson::Value::object()
+    );
+
+    if (!json.isObject() || !json.contains("categories")) return;
+
+    auto& catVal = json["categories"];
+    if (!catVal.isObject()) return;
+
+    int migrated = 0;
+    for (auto& [name, val] : catVal) {
+        if (val.isBool()) {
+            setCategoryTracked(name, val.asBool().unwrap());
+            migrated++;
+        }
+    }
+
+    if (migrated > 0) {
+        // Clear old data
+        Mod::get()->setSavedValue<matjson::Value>("tracking-data", matjson::Value::object());
+        log::info("Migrated {} tracking categories from old JSON format to GameManager", migrated);
+    }
+}
+
+// Count how many achievements in the list are earned
+int countEarnedAchievements(const std::vector<Achievement*>& achievements) {
+    if (achievements.empty()) return 0;
+
+    // Fast path: use GD's native batch check for the common case
+    auto* arr = CCArray::create();
+    for (const auto* ach : achievements) {
+        arr->addObject(CCString::create(ach->id));
+    }
+    if (achievementManager->areAchievementsEarned(arr))
+        return (int)achievements.size();
+
+    // Slow path: count individually
+    int count = 0;
+    for (const auto* ach : achievements) {
+        if (achievementManager->isAchievementEarned(ach->id.c_str()))
+            count++;
+    }
+    return count;
+}
+
+// ──── Progress bar background helper ────
+CCNode* buildProgressBarBg(const ProgressBarBgParams& params) {
+    CCNode* progressBarBg = CCNode::create();
+    progressBarBg->setID("progress-bar-bg");
+    progressBarBg->setPosition({0, 0});
+
+    // Background bar sprite
+    CCSprite* progressBarBgSpr = CCSprite::createWithSpriteFrameName("whiteSquare20_001.png");
+    progressBarBgSpr->setID("progress-bar-bg-sprite");
+    progressBarBgSpr->setScaleX(params.dotSpacing / 10 * params.numDots - params.dotSpacing / 10);
+    progressBarBgSpr->setScaleY(0.5f);
+    progressBarBgSpr->setPosition({0, 0});
+    progressBarBgSpr->setColor({37, 20, 12});
+    progressBarBg->addChild(progressBarBgSpr);
+
+    float posBase = -params.dotSpacing * params.numIconsOnPage / 2.f;
+
+    for (int i = 0; i < params.numDots; ++i) {
+        float xPos = posBase + params.dotSpacing * i + params.dotOffset;
+
+        // Dot
+        CCSprite* dotBgSpr = CCSprite::create("smallDot.png");
+        dotBgSpr->setID("dot-bg-sprite-" + std::to_string(i));
+        dotBgSpr->setPosition({xPos, 0});
+        dotBgSpr->setColor({37, 20, 12});
+        progressBarBg->addChild(dotBgSpr);
+
+        // Vertical connector bar
+        if (params.skipFirstVerticalBar && i == 0) continue;
+
+        CCSprite* verticalBarBgSpr = CCSprite::createWithSpriteFrameName("whiteSquare20_001.png");
+        verticalBarBgSpr->setID("vertical-bar-sprite-" + std::to_string(i));
+
+        bool barAbove;
+        if (params.invertVerticalBarAnchors)
+            barAbove = (i % 2 != 0);
+        else
+            barAbove = (i % 2 == 0);
+
+        if (barAbove) {
+            verticalBarBgSpr->setAnchorPoint({0.5f, 1});
+            verticalBarBgSpr->setPosition({xPos, -10.f});
+        } else {
+            verticalBarBgSpr->setAnchorPoint({0.5f, 0});
+            verticalBarBgSpr->setPosition({xPos, 10.f});
+        }
+
+        verticalBarBgSpr->setScaleX(0.1f);
+        verticalBarBgSpr->setScaleY(1.5f);
+        verticalBarBgSpr->setColor({37, 20, 12});
+        verticalBarBgSpr->setOpacity(50);
+        progressBarBg->addChild(verticalBarBgSpr);
+    }
+
+    return progressBarBg;
+}
+
+// ──── Progress bar fill helper ────
+CCNode* buildProgressFill(
+    int numDotsToFill,
+    int numDotsOnPage,
+    const std::vector<Achievement*>& achievements,
+    int pageStartIndex,
+    float statValue,
+    const ProgressFillParams& params,
+    bool globalProgress)
+{
+    CCNode* fill = CCNode::create();
+    fill->setID("progress-bar-fill");
+    fill->setPosition({0, 0});
+
+    float xBase = -params.dotSpacing * params.numIconsOnPage / 2.f;
+
+    // Create colored dots for unlocked achievements
+    for (int i = 0; i < numDotsToFill; ++i) {
+        auto* dot = CCSprite::create("smallDot.png");
+        dot->setID("dot-fill-sprite-" + std::to_string(i));
+        dot->setPosition({xBase + params.dotSpacing * i, 0});
+        dot->setColor(params.fillColor);
+        dot->setScale(0.7f);
+        fill->addChild(dot);
+    }
+
+    // Create per-segment fill bars
+    for (int i = 0; i < numDotsOnPage - 1; ++i) {
+        Achievement* curr = achievements[i + pageStartIndex];
+
+        float ratio;
+        bool isFirst = globalProgress ? (pageStartIndex + i == 0) : (i == 0);
+        if (isFirst)
+            ratio = std::min(1.f, float(statValue) / curr->unlockValue);
+        else
+            ratio = std::min(1.f, float(statValue - achievements[i - 1 + pageStartIndex]->unlockValue)
+                / (curr->unlockValue - achievements[i - 1 + pageStartIndex]->unlockValue));
+
+        if (ratio < 0.f) break;
+
+        auto* fillSpr = CCSprite::createWithSpriteFrameName("whiteSquare20_001.png");
+        fillSpr->setID("progress-bar-fill-sprite-" + std::to_string(i));
+        fillSpr->setAnchorPoint({0, 0.5f});
+        fillSpr->setPosition({xBase + params.dotSpacing * i, 0});
+        fillSpr->setColor(params.fillColor);
+        fillSpr->setScaleX(params.dotSpacing / 10 * ratio);
+        fillSpr->setScaleY(0.2f);
+        fill->addChild(fillSpr);
+    }
+
+    return fill;
 }

@@ -6,17 +6,17 @@
 
 using namespace geode::prelude;
 
-struct ProgressResult {
-    int completed = 0;
-    int total = 0;
-    int percentage = 0;
-};
-
 UnlockType unlockTypeFromString(const std::string& str);
 
-// Compute category progress based on display type
-ProgressResult computeCategoryProgress(
+// Returns the number of completed achievements (or current stat value for progress categories).
+int computeCategoryProgress(
     const std::string& displayType,
     const std::vector<Achievement*>& achievements,
     const std::string& statKey,
     int goalHint = 0);
+
+// Get the official target limit for an achievement from GD's data
+int getAchievementLimit(const std::string& achievementId);
+
+// Get the official completion percentage (0-100) for an achievement from GD's data
+int getAchievementPercent(const std::string& achievementId);

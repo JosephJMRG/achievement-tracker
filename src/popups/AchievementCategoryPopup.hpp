@@ -4,8 +4,6 @@
 #include <Geode/Geode.hpp>
 
 #include "../Utils.hpp"
-#include "../TrackingManager.hpp"
-#include "../ProgressCalculator.hpp"
 
 class AchievementMenu;
 class AchievementCategoryPopup : public geode::Popup {
@@ -32,8 +30,8 @@ class AchievementCategoryPopup : public geode::Popup {
     Category* m_category;
     int m_numAchievements;
 
-    cocos2d::CCMenu* m_navMenu;
-    cocos2d::CCMenu* m_navButtons;
+    cocos2d::CCMenu* m_navMenu = nullptr;
+    cocos2d::CCMenu* m_navButtons = nullptr;
 
     AchievementMenu* m_achievementMenu;
 };
