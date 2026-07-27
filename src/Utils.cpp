@@ -3,6 +3,28 @@
 
 using namespace geode::prelude;
 
+// Map a string like "icon", "ship", "ball", etc. to UnlockType
+static UnlockType unlockTypeFromString(const std::string& str) {
+    if (str == "icon")       return UnlockType::Cube;
+    if (str == "ship")       return UnlockType::Ship;
+    if (str == "ball")       return UnlockType::Ball;
+    if (str == "bird")       return UnlockType::Bird;
+    if (str == "dart")       return UnlockType::Dart;
+    if (str == "robot")      return UnlockType::Robot;
+    if (str == "spider")     return UnlockType::Spider;
+    if (str == "special" || str == "trail") return UnlockType::Streak;
+    if (str == "death")      return UnlockType::Death;
+    if (str == "swing")      return UnlockType::Swing;
+    if (str == "jetpack")    return UnlockType::Jetpack;
+    if (str == "shipfire")   return UnlockType::ShipFire;
+    if (str == "color" || str == "colour") return UnlockType::Col1;
+    if (str == "color2" || str == "colour2") return UnlockType::Col2;
+    if (str == "item")       return UnlockType::GJItem;
+    if (str == "set" || str == "setmaterial") return UnlockType::GJItem;
+    if (str == "screen" || str == "screenfire") return UnlockType::GJItem;
+    return UnlockType::GJItem;
+}
+
 std::map<std::string, std::pair<std::string, std::string>> betterDescriptions = {
     // Secret
     {"geometry.ach.secret04", {"Find the hidden coin on the Coming Soon screen", "Found the hidden coin on the Coming Soon screen"}},
@@ -247,7 +269,7 @@ void buildSharedCategories() {
         size_t pos = icon.find('_');
         if (pos != std::string::npos) {
             ach->unlockID = stoi(icon.substr(pos + 1));
-            ach->unlockType = ::unlockTypeFromString(icon.substr(0, pos));
+            ach->unlockType = unlockTypeFromString(icon.substr(0, pos));
         } else {
             ach->unlockID = -1;
             ach->unlockType = UnlockType::GJItem;
@@ -276,13 +298,8 @@ int extractValue(const std::string& desc) {
 }
 
 GJItemIcon* createAchievementIcon(const Achievement* ach, bool earned, bool usePlayerColors) {
-    static const std::vector<UnlockType> playerUnlockTypes = {
-        UnlockType::Cube, UnlockType::Ship, UnlockType::Ball, UnlockType::Bird,
-        UnlockType::Dart, UnlockType::Robot, UnlockType::Spider, UnlockType::Swing, UnlockType::Jetpack
-    };
-
     if (earned) {
-        bool isIcon = std::find(playerUnlockTypes.begin(), playerUnlockTypes.end(), ach->unlockType) != playerUnlockTypes.end();
+        bool isIcon = std::find(kPlayerUnlockTypes.begin(), kPlayerUnlockTypes.end(), ach->unlockType) != kPlayerUnlockTypes.end();
         GJItemIcon* icon;
         if (usePlayerColors) {
             icon = GJItemIcon::create(ach->unlockType, ach->unlockID,
@@ -331,7 +348,7 @@ CCMenuItemSpriteExtra* createAchievementIconButton(
     button->m_baseScale = 0.7f;
     button->setScale(0.7f);
 
-    auto* data = new IconCallbackData(ach->unlockType, ach->unlockID, ach->achievedDescription);
+    auto* data = new IconCallbackData(ach->unlockType, ach->unlockID);
     data->autorelease();
     button->setUserObject(data);
 

@@ -107,6 +107,10 @@ void AchievementCategoryPopup::addNavigation() {
     m_navButtons->updateLayout();
 
     // navigation arrows
+    addNavArrows();
+}
+
+void AchievementCategoryPopup::addNavArrows() {
     CCSprite* leftArrowSprite = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png");
     CCMenuItemSpriteExtra* leftArrow = CCMenuItemSpriteExtra::create(
         leftArrowSprite,
@@ -140,6 +144,30 @@ void AchievementCategoryPopup::addNavigation() {
     m_navMenu->addChild(rightArrow);
 }
 
+void AchievementCategoryPopup::switchToPage(int pageNum) {
+    // toggle page visibility
+    for (int i = 0; i < m_numPages; i++) {
+        CCNode* page = m_mainLayer->getChildByID("page-" + std::to_string(i));
+        if (page) {
+            page->setVisible(i == pageNum);
+        }
+    }
+
+    // update navigation buttons
+    if (m_navButtons) {
+        for (int i = 0; i < m_numPages; i++) {
+            CCMenuItemSpriteExtra* navButton = static_cast<CCMenuItemSpriteExtra*>(m_navButtons->getChildByID("page-button-" + std::to_string(i)));
+            if (navButton) {
+                navButton->setNormalImage(i == pageNum ? CCSprite::createWithSpriteFrameName("gj_navDotBtn_on_001.png") : CCSprite::createWithSpriteFrameName("gj_navDotBtn_off_001.png"));
+            }
+        }
+    }
+
+    // update arrow visibility
+    m_navMenu->getChildByID("left-arrow")->setVisible(pageNum > 0);
+    m_navMenu->getChildByID("right-arrow")->setVisible(pageNum < m_numPages - 1);
+}
+
 void AchievementCategoryPopup::onIcon(CCObject* sender) {
     CCMenuItemSpriteExtra* button = static_cast<CCMenuItemSpriteExtra*>(sender);
     IconCallbackData* data = dynamic_cast<IconCallbackData*>(button->getUserObject());
@@ -149,7 +177,7 @@ void AchievementCategoryPopup::onIcon(CCObject* sender) {
 
     popup->show();
 
-    std::vector<UnlockType> playerUnlockTypes = {UnlockType::Cube, UnlockType::Ship, UnlockType::Ball, UnlockType::Bird, UnlockType::Dart, UnlockType::Robot, UnlockType::Spider, UnlockType::Swing};
+    std::vector<UnlockType> playerUnlockTypes = kPlayerUnlockTypes;
 
     if (std::find(playerUnlockTypes.begin(), playerUnlockTypes.end(), data->unlockType) == playerUnlockTypes.end()) return;  // is not a player icon
 
@@ -178,27 +206,7 @@ void AchievementCategoryPopup::onIcon(CCObject* sender) {
 
 void AchievementCategoryPopup::onNavButton(CCObject* sender) {
     CCMenuItemSpriteExtra* button = static_cast<CCMenuItemSpriteExtra*>(sender);
-    int pageNum = button->getTag();
-
-    // update page visibility
-    for (int i = 0; i < m_numPages; i++) {
-        CCNode* page = m_mainLayer->getChildByID("page-" + std::to_string(i));
-        if (page) {
-            page->setVisible(i == pageNum);
-        }
-    }
-
-    // update navigation buttons
-    for (int i = 0; i < m_numPages; i++) {
-        CCMenuItemSpriteExtra* navButton = static_cast<CCMenuItemSpriteExtra*>(m_navButtons->getChildByID("page-button-" + std::to_string(i)));
-        if (navButton) {
-            navButton->setNormalImage(i == pageNum ? CCSprite::createWithSpriteFrameName("gj_navDotBtn_on_001.png") : CCSprite::createWithSpriteFrameName("gj_navDotBtn_off_001.png"));
-        }
-    }
-
-    // update arrow visibility
-    m_navMenu->getChildByID("left-arrow")->setVisible(pageNum > 0);
-    m_navMenu->getChildByID("right-arrow")->setVisible(pageNum < m_numPages - 1);
+    switchToPage(button->getTag());
 }
 
 void AchievementCategoryPopup::onArrow(CCObject* sender) {
@@ -216,25 +224,7 @@ void AchievementCategoryPopup::onArrow(CCObject* sender) {
     int newPage = currentPage + (direction == 0 ? -1 : 1);
     if (newPage < 0 || newPage >= m_numPages) return;
 
-    // update page visibility
-    for (int i = 0; i < m_numPages; i++) {
-        CCNode* page = m_mainLayer->getChildByID("page-" + std::to_string(i));
-        if (page) {
-            page->setVisible(i == newPage);
-        }
-    }
-
-    // update navigation buttons
-    for (int i = 0; i < m_numPages; i++) {
-        CCMenuItemSpriteExtra* navButton = static_cast<CCMenuItemSpriteExtra*>(m_navButtons->getChildByID("page-button-" + std::to_string(i)));
-        if (navButton) {
-            navButton->setNormalImage(i == newPage ? CCSprite::createWithSpriteFrameName("gj_navDotBtn_on_001.png") : CCSprite::createWithSpriteFrameName("gj_navDotBtn_off_001.png"));
-        }
-    }
-
-    // update arrow visibility
-    m_navMenu->getChildByID("left-arrow")->setVisible(newPage > 0);
-    m_navMenu->getChildByID("right-arrow")->setVisible(newPage < m_numPages - 1);
+    switchToPage(newPage);
 }
 
 void AchievementCategoryPopup::onClose(CCObject* sender) {

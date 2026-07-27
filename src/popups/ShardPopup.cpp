@@ -118,56 +118,14 @@ void ShardPopup::addNavigation(int activePage) {
     if (refresh) return;
 
     // navigation arrows
-    CCSprite* leftArrowSprite = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png");
-    CCMenuItemSpriteExtra* leftArrow = CCMenuItemSpriteExtra::create(
-        leftArrowSprite,
-        this,
-        menu_selector(ShardPopup::onArrow));
-    if (m_mainLayer->getPositionX() - m_mainLayer->getContentWidth() / 2 > 40)
-        leftArrow->setPosition({-30.f, m_navMenu->getContentHeight() / 2});
-    else {
-        leftArrow->setAnchorPoint({0, 0.5f});
-        leftArrow->setPosition({-(getContentWidth() - m_navMenu->getContentWidth()) / 2, m_navMenu->getContentHeight() / 2});
-    }
-    leftArrow->setTag(0);
-    leftArrow->setID("left-arrow");
-    m_navMenu->addChild(leftArrow);
-    leftArrow->setVisible(false);
-
-    CCSprite* rightArrowSprite = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png");
-    rightArrowSprite->setFlipX(true);
-    CCMenuItemSpriteExtra* rightArrow = CCMenuItemSpriteExtra::create(
-        rightArrowSprite,
-        this,
-        menu_selector(ShardPopup::onArrow));
-    if (m_mainLayer->getPositionX() - m_mainLayer->getContentWidth() / 2 > 40)
-        rightArrow->setPosition({m_navMenu->getContentWidth() + 30.f, m_navMenu->getContentHeight() / 2});
-    else {
-        rightArrow->setAnchorPoint({1, 0.5f});
-        rightArrow->setPosition({m_navMenu->getContentWidth() + (getContentWidth() - m_navMenu->getContentWidth()) / 2, m_navMenu->getContentHeight() / 2});
-    }
-    rightArrow->setTag(1);
-    rightArrow->setID("right-arrow");
-    m_navMenu->addChild(rightArrow);
+    addNavArrows();
 }
 
 void ShardPopup::onNavButton(CCObject* sender) {
     CCMenuItemSpriteExtra* button = static_cast<CCMenuItemSpriteExtra*>(sender);
     int pageNum = button->getTag();
-
-    // update page visibility
-    for (int i = 0; i < m_numPages; i++) {
-        CCNode* page = m_mainLayer->getChildByID("page-" + std::to_string(i));
-        if (page) {
-            page->setVisible(i == pageNum);
-        }
-    }
-
+    switchToPage(pageNum);
     addNavigation(pageNum);
-
-    // update arrow visibility
-    m_navMenu->getChildByID("left-arrow")->setVisible(pageNum > 0);
-    m_navMenu->getChildByID("right-arrow")->setVisible(pageNum < m_numPages - 1);
 }
 
 void ShardPopup::onArrow(CCObject* sender) {
@@ -185,19 +143,8 @@ void ShardPopup::onArrow(CCObject* sender) {
     int newPage = currentPage + (direction == 0 ? -1 : 1);
     if (newPage < 0 || newPage >= m_numPages) return;
 
-    // update page visibility
-    for (int i = 0; i < m_numPages; i++) {
-        CCNode* page = m_mainLayer->getChildByID("page-" + std::to_string(i));
-        if (page) {
-            page->setVisible(i == newPage);
-        }
-    }
-
+    switchToPage(newPage);
     addNavigation(newPage);
-
-    // update arrow visibility
-    m_navMenu->getChildByID("left-arrow")->setVisible(newPage > 0);
-    m_navMenu->getChildByID("right-arrow")->setVisible(newPage < m_numPages - 1);
 }
 
 cocos2d::CCNode* ShardPopup::createPage(int pageNum) {

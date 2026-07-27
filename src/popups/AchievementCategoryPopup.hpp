@@ -25,6 +25,10 @@ class AchievementCategoryPopup : public geode::Popup {
     void addTrackingRow();
     void onToggleCategoryTracked(CCObject* sender);
 
+    // Nav helpers for subclasses that rebuild navigation (PathPopup, ShardPopup)
+    void addNavArrows();
+    void switchToPage(int pageNum);
+
     int m_maxIconsPerPage;
     int m_numPages;
     Category* m_category;

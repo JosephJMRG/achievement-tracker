@@ -159,8 +159,7 @@ CCNode* DistinctPopup::createPage(int pageNum) {
             tile->addChild(coinSprite);
             continue;
         } else if (earned) {
-            std::vector<UnlockType> playerUnlockTypes = {UnlockType::Cube, UnlockType::Ship, UnlockType::Ball, UnlockType::Bird, UnlockType::Dart, UnlockType::Robot, UnlockType::Spider, UnlockType::Swing, UnlockType::Jetpack};
-            bool isIcon = std::find(playerUnlockTypes.begin(), playerUnlockTypes.end(), currAchievement->unlockType) != playerUnlockTypes.end();
+            bool isIcon = std::find(kPlayerUnlockTypes.begin(), kPlayerUnlockTypes.end(), currAchievement->unlockType) != kPlayerUnlockTypes.end();
 
             if (usePlayerColors) {
                 unlockItem = GJItemIcon::create(currAchievement->unlockType, currAchievement->unlockID, gameManager->colorForIdx(gameManager->getPlayerColor()), gameManager->colorForIdx(gameManager->getPlayerColor2()), isIcon, false, false, gameManager->colorForIdx(gameManager->getPlayerGlowColor()));
@@ -188,7 +187,7 @@ CCNode* DistinctPopup::createPage(int pageNum) {
             this,
             menu_selector(DistinctPopup::onIcon));
 
-        IconCallbackData* data = new IconCallbackData(currAchievement->unlockType, currAchievement->unlockID, currAchievement->achievedDescription);
+        IconCallbackData* data = new IconCallbackData(currAchievement->unlockType, currAchievement->unlockID);
         data->autorelease();
         unlockButton->setUserObject(data);
 

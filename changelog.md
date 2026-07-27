@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.0.2
+
+### Changed
+- Removed unused `getAchievementLimit()` and `getAchievementPercent()` functions
+- Removed unused `unlockedDescription` field from icon callback data
+- Consolidated `playerUnlockTypes` vector into a single shared definition
+- Moved `unlockTypeFromString()` to Utils (was exposed in ProgressCalculator header unnecessarily)
+- Extracted navigation arrows and page-switch logic into shared base class helpers, eliminating duplication across PathPopup, ShardPopup, and AchievementCategoryPopup
+
 ## v3.0.1
 
 ### Fixed

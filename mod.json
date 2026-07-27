@@ -8,7 +8,7 @@
 	},
 	"id": "josephjmrg.achievement_tracker",
 	"name": "Achievement Tracker",
-	"version": "v3.0.1",
+	"version": "v3.0.2",
 	"developer": "JosephJMRG",
 	"description": "A fork of Achievements Reimagined (by TheRisingLegend) that adds achievement tracking, progress notifications, and a comprehensive tracking dashboard.",
 	"links": {

@@ -33,9 +33,8 @@ struct Category {
 struct IconCallbackData : public cocos2d::CCObject {
     UnlockType unlockType;
     int unlockID;
-    std::string unlockedDescription;
 
-    IconCallbackData(UnlockType type, int id, std::string desc) : unlockType(type), unlockID(id), unlockedDescription(desc) {}
+    IconCallbackData(UnlockType type, int id) : unlockType(type), unlockID(id) {}
 };
 
 // ──── Global pointers ────
@@ -52,6 +51,10 @@ extern std::vector<Category> s_achievementCategories;
 void buildSharedCategories(); // populates s_achievementCategories once
 
 // ──── Helper functions ────
+inline const std::vector<UnlockType> kPlayerUnlockTypes = {
+    UnlockType::Cube, UnlockType::Ship, UnlockType::Ball, UnlockType::Bird,
+    UnlockType::Dart, UnlockType::Robot, UnlockType::Spider, UnlockType::Swing, UnlockType::Jetpack
+};
 cocos2d::CCNode* createFractionLabel(int num, int denom);
 std::string formatWithCommas(int number);
 int extractValue(const std::string& desc);
