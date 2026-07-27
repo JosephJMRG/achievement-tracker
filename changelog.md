@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.0.3
+
+### Changed
+- Added "Why this mod?" section to README and about page
+
 ## v3.0.2
 
 ### Changed
