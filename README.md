@@ -4,6 +4,12 @@
 
 A fork of **Achievements Reimagined** (by TheRisingLegend) that adds achievement tracking, progress notifications, and a comprehensive tracking dashboard.
 
+## Why this mod?
+
+Geometry Dash has 570+ achievements, but the default menu makes them hard to navigate and even harder to understand. Most descriptions are vague or unhelpful — they tell you *what* the achievement is called, but not *how* to actually unlock it.
+
+This mod was made to give those achievements a purpose: a clear, organized view of your progress, with neutral descriptions that tell you exactly what you need to do — no filler, no guesswork. Whether you're going for 100% completion or just want to know what's left, this mod makes it straightforward.
+
 ## Features
 
 - Complete redesign of the achievements menu with a cleaner, category-based layout.
